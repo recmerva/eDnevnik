@@ -1,0 +1,70 @@
+services:
+  - type: pserv
+    name: moj-dnevnik-mysql
+    runtime: image
+    image:
+      url: docker.io/library/mysql:8.4
+    region: frankfurt
+    plan: 1c-2g
+    disk:
+      name: mysql-data
+      mountPath: /var/lib/mysql
+      sizeGB: 10
+    envVars:
+      - key: MYSQL_DATABASE
+        value: skolski_dnevnik
+      - key: MYSQL_USER
+        value: skola_app
+      - key: MYSQL_PASSWORD
+        sync: false
+      - key: MYSQL_ROOT_PASSWORD
+        sync: false
+
+  - type: web
+    name: moj-dnevnik-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    region: frankfurt
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ASPNETCORE_URLS
+        value: http://0.0.0.0:10000
+      - key: MYSQL_HOST
+        fromService:
+          name: moj-dnevnik-mysql
+          type: pserv
+          property: host
+      - key: MYSQL_PORT
+        fromService:
+          name: moj-dnevnik-mysql
+          type: pserv
+          property: port
+      - key: MYSQL_DATABASE
+        value: skolski_dnevnik
+      - key: MYSQL_USER
+        value: skola_app
+      - key: MYSQL_PASSWORD
+        fromService:
+          name: moj-dnevnik-mysql
+          type: pserv
+          envVarKey: MYSQL_PASSWORD
+      - key: FrontendOrigins__0
+        value: https://moj-dnevnik.onrender.com
+      - key: SEED_ADMIN_EMAIL
+        sync: false
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
+
+  - type: web
+    name: moj-dnevnik
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://moj-dnevnik-api.onrender.com
